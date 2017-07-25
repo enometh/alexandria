@@ -1,0 +1,71 @@
+;;; -*- Mode: LISP; Package: :cl-user; BASE: 10; Syntax: ANSI-Common-Lisp; -*-
+;;;
+;;;   Touched: Wed Aug 20 20:40:31 2008 +0530 <enometh@meer.net>
+;;;   Time-stamp: <>
+;;;   Bugs-To: enometh@meer.net
+;;;   Status: Experimental.  Do not redistribute
+;;;   Copyright (C) 2008-2021 Madhu.  All Rights Reserved.
+;;;
+;;; https://gitlab.common-lisp.net/alexandria/alexandria
+;;;
+(in-package "CL-USER")
+
+(defvar *alexandria-source-dir*
+  (merge-pathnames "alexandria/" (translate-logical-pathname "EXTERN:")))
+(defvar *alexandria-binary-dir* (binary-directory *alexandria-source-dir*))
+
+(mk:defsystem "alexandria"
+  :source-pathname *alexandria-source-dir*
+  :binary-pathname *alexandria-binary-dir*
+  :source-extension "lisp"
+  :components
+  ((:module "alexandria-1"
+    :components
+    ((:file "package")
+     (:file "definitions" :depends-on ("package"))
+     (:file "binding" :depends-on ("package"))
+     (:file "strings" :depends-on ("package"))
+     (:file "conditions" :depends-on ("package"))
+     (:file "io" :depends-on ("package" "macros" "lists" "types"))
+     (:file "macros" :depends-on ("package" "strings" "symbols"))
+     (:file "hash-tables"
+      :depends-on ("package" "macros"))
+     (:file "control-flow" :depends-on ("package" "definitions" "macros"))
+     (:file "symbols" :depends-on ("package"))
+     (:file "functions"
+      :depends-on ("package" "symbols" "macros"))
+     (:file "lists" :depends-on ("package" "functions"))
+     (:file "types"
+      :depends-on ("package" "symbols" "lists"))
+     (:file "arrays" :depends-on ("package" "types"))
+     (:file "sequences" :depends-on ("package" "lists" "types"))
+     (:file "numbers" :depends-on ("package" "sequences"))
+     (:file "features" :depends-on ("package" "control-flow"))))
+   (:module "alexandria-2"
+    :components ((:file "package")
+		 (:file "arrays" :depends-on ("package"))
+		 (:file "control-flow" :depends-on ("package"))
+		 (:file "sequences" :depends-on ("package"))
+		 (:file "lists" :depends-on ("package"))))))
+
+#+nil
+(mk:oos "alexandria" :load :compile-during-load t)
+
+
+(mk:defsystem "alexandria/tests"
+  :source-pathname *alexandria-source-dir*
+  :binary-pathname *alexandria-binary-dir*
+  :source-extension "lisp"
+  :depends-on (:alexandria
+	       :rt)
+  :components ((:file "alexandria-1/tests")
+	       (:file "alexandria-2/tests")))
+
+#+nil
+(mk:oos "alexandria/tests" :load :compile-during-load t)
+
+#+nil
+(alexandria/tests::run-tests :compiled nil)
+
+#+nil
+(alexandria/tests::run-tests :compiled t)
