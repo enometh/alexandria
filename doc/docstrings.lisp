@@ -35,12 +35,18 @@
 ;;;;
 ;;;; Lines containing only a SYMBOL that are followed by indented
 ;;;; lines are marked up as @table @code, with the SYMBOL as the item.
+(in-package "CL-USER")
 
+#+nil
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (require 'sb-introspect))
 
+(require :closer-mop)
+
+;; (delete-package :sb-texinfo)
+
 (defpackage :sb-texinfo
-  (:use :cl :sb-mop)
+  (:use :cl #+nil :closer-mop)
   (:shadow #:documentation)
   (:export #:generate-includes #:document-package)
   (:documentation
@@ -114,21 +120,25 @@ you deserve to lose.")
 
 (defgeneric specializer-name (specializer))
 
-(defmethod specializer-name ((specializer eql-specializer))
-  (list 'eql (eql-specializer-object specializer)))
+
+;; lispworks doesn't have the eql-specializer class, it represents
+;; them as a list of `(EQL ,OBJECT)
+(defmethod specializer-name ((specializer #+lispworks cons
+					  #-lispworks closer-mop:eql-specializer))
+  (list 'eql (closer-mop:eql-specializer-object specializer)))
 
 (defmethod specializer-name ((specializer class))
   (class-name specializer))
 
 (defun ensure-class-precedence-list (class)
-  (unless (class-finalized-p class)
-    (finalize-inheritance class))
-  (class-precedence-list class))
+  (unless (closer-mop:class-finalized-p class)
+    (closer-mop:finalize-inheritance class))
+  (closer-mop:class-precedence-list class))
 
 (defun specialized-lambda-list (method)
   ;; courtecy of AMOP p. 61
-  (let* ((specializers (method-specializers method))
-         (lambda-list (method-lambda-list method))
+  (let* ((specializers (closer-mop:method-specializers method))
+         (lambda-list (closer-mop:method-lambda-list method))
          (n-required (length specializers)))
     (append (mapcar (lambda (arg specializer)
                       (if  (eq specializer (find-class 't))
@@ -150,7 +160,8 @@ you deserve to lose.")
   (position-if-not (lambda (c) (char= c #\Space)) line))
 
 (defun docstring (x doc-type)
-  (cl:documentation x doc-type))
+  (user::ignoring-errors
+    (cl:documentation x doc-type)))
 
 (defun flatten-to-string (list)
   (format nil "~{~A~^-~}" (flatten list)))
@@ -196,7 +207,7 @@ symbols or lists of symbols."))
 
 (defmethod name ((method method))
   (list
-   (generic-function-name (method-generic-function method))
+   (closer-mop:generic-function-name (closer-mop:method-generic-function method))
    (method-qualifiers method)
    (specialized-lambda-list method)))
 
@@ -347,8 +358,11 @@ symbols or lists of symbols."))
                  :string string
                  :kind (etypecase (find-class x nil)
                          (structure-class 'structure)
-                         (standard-class 'class)
-                         (sb-pcl::condition-class 'condition)
+                         (standard-class
+			  (if (subtypep x 'condition)
+			      'condition
+			      'class))
+                         ;;(condition-class 'condition)
                          ((or built-in-class null) 'type))))
 
 (defmethod make-documentation (x (doc-type (eql 'variable)) string)
@@ -414,7 +428,12 @@ there is no corresponding docstring."
                       (cond ((or key optional) (car x))
                             (t (clean (car x))))
                       (clean (cdr x) :key key :optional optional))))))
-         (clean (sb-introspect:function-lambda-list (get-name doc))))))))
+         (clean (#+lispworks
+		 lispworks:function-lambda-list
+		 #+ccl CCL::arglist
+		 #-(or lispworks ccl)
+		 (error 'function-lambda-list)
+		 (get-name doc))))))))
 
 (defun get-string-name (x)
   (let ((name (get-name x)))
@@ -756,14 +775,14 @@ followed another tabulation label or a tabulation body."
                          (mapcar #'class-name (ensure-class-precedence-list (find-class name)))))
       ;; slots
       (let ((slots (remove-if (lambda (slot) (hide-slot-p name slot))
-                              (class-direct-slots (find-class name)))))
+                              (closer-mop:class-direct-slots (find-class name)))))
         (when slots
           (format *texinfo-output* "Slots:~%@itemize~%")
           (dolist (slot slots)
             (format *texinfo-output*
                     "@item ~(@code{~A}~#[~:; --- ~]~
                       ~:{~2*~@[~2:*~A~P: ~{@code{@w{~S}}~^, ~}~]~:^; ~}~)~%~%"
-                    (slot-definition-name slot)
+                    (closer-mop:slot-definition-name slot)
                     (remove
                      nil
                      (mapcar
@@ -772,9 +791,9 @@ followed another tabulation label or a tabulation body."
                             (list name (length things) things)))
                       '("initarg" "reader"  "writer")
                       (list
-                       (slot-definition-initargs slot)
-                       (slot-definition-readers slot)
-                       (slot-definition-writers slot)))))
+                       (closer-mop:slot-definition-initargs slot)
+                       (closer-mop:slot-definition-readers slot)
+                       (closer-mop:slot-definition-writers slot)))))
             ;; FIXME: Would be neater to handler as children
             (write-texinfo-string (docstring slot t)))
           (format *texinfo-output* "@end itemize~%~%"))))))
@@ -804,7 +823,7 @@ followed another tabulation label or a tabulation body."
 
 (defun collect-gf-documentation (gf)
   "Collects method documentation for the generic function GF"
-  (loop for method in (generic-function-methods gf)
+  (loop for method in (closer-mop:generic-function-methods gf)
         for doc = (maybe-documentation method t)
         when doc
         collect doc))
