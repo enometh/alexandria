@@ -731,6 +731,12 @@ followed another tabulation label or a tabulation body."
   (not (and (typep (find-class symbol nil) 'standard-class)
             (docstring slot t))))
 
+(defun make-macro-name (string)
+  "Make an appropriate name for Texinfo macro."
+  (concatenate 'string
+               "sbtexinfo"
+               (substitute-if #\x (complement #'alpha-char-p) string)))
+
 (defun texinfo-anchor (doc)
   (format *texinfo-output* "@anchor{~A}~%" (node-name doc)))
 
@@ -751,8 +757,9 @@ followed another tabulation label or a tabulation body."
             ;; interactions,so we escape the ampersand -- amusingly for TeX.
             ;; sbcl.texinfo defines macros that expand @&key and friends to &key.
             (mapcar (lambda (name)
-                      (if (member name lambda-list-keywords)
-                          (format nil "@~A" name)
+                      (if (member name (load-time-value
+                                        (remove '&aux lambda-list-keywords)))
+                          (format nil "@~A" (make-macro-name (string-downcase name)))
                           name))
                     (lambda-list doc)))))
 
@@ -870,14 +877,17 @@ package, as well as for the package itself."
   ;; Texinfo > 5 doesn't allow "&" in macro names any more;
   ;; see also https://bugs.launchpad.net/asdf/+bug/1172567 or
   ;; ASDF commit dfa4643b212b194f2d673b6f0d9c7d4b19d823ba
+  ;; ;madhu  211104 fixed upstream. was
+  ;; "@macro ~A~%&~A~%@end macro~%" (macro 'allow-other-keys)
   (flet ((macro (name)
                  (let ((string (string-downcase name)))
-                   (format *texinfo-output* "@macro ~A~%&~A~%@end macro~%" string string))))
-    (macro 'allow-other-keys)
-    (macro 'optional)
-    (macro 'rest)
-    (macro 'key)
-    (macro 'body)))
+                   (format *texinfo-output* "@macro ~A~%~A @:~%@end macro~%"
+                           (make-macro-name string) string))))
+    (macro '&allow-other-keys)
+    (macro '&optional)
+    (macro '&rest)
+    (macro '&key)
+    (macro '&body)))
 
 (defun generate-includes (directory packages &key (base-package :cl-user))
   "Create files in `directory' containing Texinfo markup of all
