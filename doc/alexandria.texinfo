@@ -4,7 +4,7 @@
 @settitle alexandria Manual
 @c %**end of header
 
-@settitle alexandria Manual -- draft version
+@c@settitle alexandria Manual -- draft version
 
 @c for install-info
 @dircategory Software development
