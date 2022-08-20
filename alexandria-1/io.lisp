@@ -65,6 +65,8 @@ which is only sent to WITH-OPEN-FILE when it's not NIL."
   (check-type buffer-size positive-integer)
   (let ((*print-pretty* nil)
         (element-type (stream-element-type stream)))
+    (unless (subtypep element-type 'character)
+      (setq element-type 'character))
     (with-output-to-string (datum nil :element-type element-type)
       (let ((buffer (make-array buffer-size :element-type element-type)))
         (loop
