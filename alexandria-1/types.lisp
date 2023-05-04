@@ -28,12 +28,12 @@ ARRAY-DIMENSION-LIMIT."
                                                (symbol-name sybtype-name))))
                     (push result predicate-names)
                     result))
-		(make-docstring (range-beg range-end range-type)
-		  (let ((inf (ecase range-type (:negative "-inf") (:positive "+inf"))))
-		    (format nil "Type specifier denoting the ~(~A~) range from ~A to ~A."
-			    type
-			    (if (equal range-beg ''*) inf (ensure-car range-beg))
-			    (if (equal range-end ''*) inf (ensure-car range-end))))))
+                (make-docstring (range-beg range-end range-type)
+                  (let ((inf (ecase range-type (:negative "-inf") (:positive "+inf"))))
+                    (format nil "Type specifier denoting the ~(~A~) range from ~A to ~A."
+                            type
+                            (if (equal range-beg ''*) inf (ensure-car range-beg))
+                            (if (equal range-end ''*) inf (ensure-car range-end))))))
            (let* ((negative-name     (make-subtype-name '#:negative-~a))
                   (non-positive-name (make-subtype-name '#:non-positive-~a))
                   (non-negative-name (make-subtype-name '#:non-negative-~a))
@@ -61,20 +61,20 @@ ARRAY-DIMENSION-LIMIT."
                      (long-float   (values ''* '(0.0L0) '(0.0L0) ''* 0.0L0))))
              `(progn
                 (deftype ,negative-name ()
-		  ,(make-docstring negative-extremum below-zero :negative)
-		  `(,',base-type ,,negative-extremum ,',below-zero))
+                  ,(make-docstring negative-extremum below-zero :negative)
+                  `(,',base-type ,,negative-extremum ,',below-zero))
 
                 (deftype ,non-positive-name ()
-		  ,(make-docstring negative-extremum zero :negative)
-		  `(,',base-type ,,negative-extremum ,',zero))
+                  ,(make-docstring negative-extremum zero :negative)
+                  `(,',base-type ,,negative-extremum ,',zero))
 
                 (deftype ,non-negative-name ()
-		  ,(make-docstring zero positive-extremum :positive)
-		  `(,',base-type ,',zero ,,positive-extremum))
+                  ,(make-docstring zero positive-extremum :positive)
+                  `(,',base-type ,',zero ,,positive-extremum))
 
                 (deftype ,positive-name ()
-		  ,(make-docstring above-zero positive-extremum :positive)
-		  `(,',base-type ,',above-zero ,,positive-extremum))
+                  ,(make-docstring above-zero positive-extremum :positive)
+                  `(,',base-type ,',above-zero ,,positive-extremum))
 
                 (declaim (inline ,@predicate-names))
 
@@ -124,14 +124,27 @@ and a secondary value that is true is the type equality could be reliably
 determined: primary value of NIL and secondary value of T indicates that the
 types are not equivalent."
   (multiple-value-bind (sub ok) (subtypep type1 type2)
-    (cond ((and ok sub)
+    (cond ((and ok sub) ; type1 is known to be a subtype of type 2
+           ; so type= return values come from the second invocation of subtypep
            (subtypep type2 type1))
+          ;; type1 is assuredly NOT a subtype of type2,
+          ;; so assuredly type1 and type2 cannot be type=
           (ok
-           (values nil ok))
+           (values nil t))
+          ;; our first result is uncertain ( ok == nil ) and it follows
+          ;; from specification of SUBTYPEP that sub = ok = NIL
           (t
-           (multiple-value-bind (sub ok) (subtypep type2 type1)
-             (declare (ignore sub))
-             (values nil ok))))))
+           (assert (not sub))           ; is the implementation correct?
+           (multiple-value-bind (sub2 ok2)
+               (subtypep type2 type1)
+             (if  (and (not sub2) ok2)  ; we KNOW type2 is not a subtype of type1
+                  ;; so our results are certain...
+                  (values nil t)
+                  ;; otherwise, either type2 is surely a subtype of type1 (t t)
+                  ;; or type2 is not a subtype of type1, but we don't
+                  ;; know that for sure (nil nil)
+                  ;; In either case our result is negative but unsure
+                  (values nil nil)))))))
 
 (define-modify-macro coercef (type-spec) coerce
   "Modify-macro for COERCE.")
