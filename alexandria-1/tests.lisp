@@ -544,7 +544,7 @@
         (funcall fun 2)))
   4)
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (pushnew 'curry.3 rt::*expected-failures*))
+  (pushnew 'curry.3 *expected-failures*))
 
 (deftest curry.4
     (let* ((x 1)
